@@ -1,0 +1,4035 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>67: OASIS</title>
+
+<style>
+*{
+    box-sizing:border-box;
+}
+
+html,body{
+    margin:0;
+    width:100%;
+    height:100%;
+    overflow:hidden;
+    background:#000;
+    font-family:Arial,sans-serif;
+}
+
+canvas{
+    display:block;
+    width:100%;
+    height:100%;
+}
+
+#menu,
+#ending{
+    position:fixed;
+    inset:0;
+    z-index:100;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    text-align:center;
+    color:white;
+    background:
+        radial-gradient(circle at center,#303030 0%,#090909 55%,#000 100%);
+}
+
+#ending{
+    display:none;
+}
+
+.box{
+    width:min(760px,90%);
+}
+
+h1{
+    font-size:clamp(80px,15vw,150px);
+    margin:0;
+    letter-spacing:15px;
+}
+
+h2{
+    letter-spacing:5px;
+}
+
+p{
+    color:#ccc;
+    line-height:1.6;
+}
+
+button{
+    padding:16px 35px;
+    margin-top:20px;
+    border:0;
+    border-radius:10px;
+    font-size:20px;
+    font-weight:bold;
+    cursor:pointer;
+}
+
+button:hover{
+    transform:scale(1.03);
+}
+
+#hud{
+    position:fixed;
+    inset:0;
+    z-index:20;
+    pointer-events:none;
+    color:white;
+    text-shadow:0 2px 6px #000;
+}
+
+#title{
+    position:absolute;
+    top:15px;
+    left:20px;
+    font-size:22px;
+    font-weight:bold;
+}
+
+#objective{
+    position:absolute;
+    top:48px;
+    left:20px;
+    max-width:430px;
+}
+
+#help{
+    position:absolute;
+    top:20px;
+    right:20px;
+    color:#ddd;
+    text-align:right;
+    line-height:1.6;
+}
+
+#warning{
+    position:absolute;
+    top:90px;
+    left:50%;
+    transform:translateX(-50%);
+    color:#ff4444;
+    font-size:20px;
+    font-weight:bold;
+    opacity:0;
+    transition:.2s;
+}
+
+#message{
+    position:absolute;
+    bottom:35px;
+    left:50%;
+    transform:translateX(-50%);
+    width:min(720px,90%);
+    padding:15px 20px;
+    background:rgba(0,0,0,.78);
+    border-radius:12px;
+    text-align:center;
+    opacity:0;
+    transition:.25s;
+}
+
+#crosshair{
+    position:absolute;
+    left:50%;
+    top:50%;
+    width:8px;
+    height:8px;
+    border:2px solid white;
+    border-radius:50%;
+    transform:translate(-50%,-50%);
+}
+
+#fade{
+    position:fixed;
+    inset:0;
+    z-index:90;
+    pointer-events:none;
+    background:#000;
+    opacity:0;
+    transition:opacity .7s;
+}
+</style>
+</head>
+
+<body>
+
+<canvas id="canvas"></canvas>
+
+<div id="fade"></div>
+
+<div id="menu">
+    <div class="box">
+        <h1>67</h1>
+        <h2>OASIS</h2>
+
+        <p>Apartmandan çık.</p>
+
+        <p>
+            10 tane 67'yi bul.
+            <br>
+            Sonra başladığın yere geri dön.
+        </p>
+
+        <p>
+            Kapının ardında uzun zamandır
+            görmediğin bir yer seni bekliyor.
+        </p>
+
+        <button id="start">BAŞLA</button>
+
+        <p style="font-size:14px;color:#777">
+            W A S D = hareket<br>
+            ← → = dön<br>
+            E = etkileşim
+        </p>
+    </div>
+</div>
+
+<div id="hud">
+
+    <div id="title">67: OASIS</div>
+
+    <div id="objective">
+        Amaç:
+        <span id="objectiveText">10 tane 67 bul</span>
+    </div>
+
+    <div id="help">
+        W A S D<br>
+        ← →<br>
+        E
+    </div>
+
+    <div id="warning">
+        ⚠ BİRİ SENİ TAKİP EDİYOR
+    </div>
+
+    <div id="crosshair"></div>
+
+    <div id="message"></div>
+
+</div>
+
+<div id="ending">
+    <div class="box">
+
+        <h1>🌙</h1>
+
+        <h2>UYUDUN</h2>
+
+        <p>
+            Günün sonunda eve döndün.
+        </p>
+
+        <p>
+            Televizyon sessizleşti.
+            <br>
+            Ev karanlığa büründü.
+        </p>
+
+        <h2>67</h2>
+
+        <p>
+            Hikâyenin ilk bölümü burada bitiyor.
+        </p>
+
+        <button onclick="location.reload()">
+            TEKRAR OYNA
+        </button>
+
+    </div>
+</div>
+
+<script>
+
+/* =========================================================
+   CANVAS
+========================================================= */
+
+const canvas=document.getElementById("canvas");
+const ctx=canvas.getContext("2d");
+
+let W=innerWidth;
+let H=innerHeight;
+
+function resize(){
+    W=innerWidth;
+    H=innerHeight;
+
+    canvas.width=W;
+    canvas.height=H;
+}
+
+resize();
+addEventListener("resize",resize);
+
+
+/* =========================================================
+   GENEL OYUN DURUMU
+========================================================= */
+
+let started=false;
+
+let game="apartment";
+
+let found=0;
+
+let escapeUnlocked=false;
+
+let lastTime=performance.now();
+
+let currentTime=0;
+
+
+/* =========================================================
+   KLAVYE
+========================================================= */
+
+const keys={};
+
+addEventListener("keydown",e=>{
+
+    keys[e.code]=true;
+
+    if([
+        "ArrowLeft",
+        "ArrowRight",
+        "ArrowUp",
+        "ArrowDown",
+        "Space"
+    ].includes(e.code)){
+        e.preventDefault();
+    }
+
+    if(
+        e.code==="KeyE" &&
+        !e.repeat
+    ){
+        interact();
+    }
+
+});
+
+addEventListener("keyup",e=>{
+    keys[e.code]=false;
+});
+
+
+/* =========================================================
+   YARDIMCI
+========================================================= */
+
+function clamp(v,a,b){
+    return Math.max(a,Math.min(b,v));
+}
+
+function distance(ax,ay,bx,by){
+    return Math.hypot(ax-bx,ay-by);
+}
+
+function angleDifference(a,b){
+
+    let d=a-b;
+
+    while(d>Math.PI)d-=Math.PI*2;
+    while(d<-Math.PI)d+=Math.PI*2;
+
+    return d;
+}
+
+
+/* =========================================================
+   OYUNCU
+========================================================= */
+
+const player={
+    x:2.5,
+    y:1.5,
+    angle:0
+};
+
+const spawn={
+    x:2.5,
+    y:1.5
+};
+
+
+/* =========================================================
+   APARTMAN HARİTASI
+========================================================= */
+
+const MAP=[
+
+"################",
+"#..............#",
+"#.####..####...#",
+"#.#............#",
+"#.#.######.###.#",
+"#.#........#...#",
+"#.#######..#.#.#",
+"#...........#..#",
+"###.##########.#",
+"#..............#",
+"#.######.#####.#",
+"#.#............#",
+"#.#.##########.#",
+"#..............#",
+"################"
+
+];
+
+const MW=MAP[0].length;
+const MH=MAP.length;
+
+
+function isWall(x,y){
+
+    const mx=Math.floor(x);
+    const my=Math.floor(y);
+
+    if(
+        mx<0 ||
+        my<0 ||
+        mx>=MW ||
+        my>=MH
+    ){
+        return true;
+    }
+
+    return MAP[my][mx]==="#";
+}
+
+
+function canMove(x,y,r=.18){
+
+    return(
+        !isWall(x-r,y-r) &&
+        !isWall(x+r,y-r) &&
+        !isWall(x-r,y+r) &&
+        !isWall(x+r,y+r)
+    );
+}
+
+
+/* =========================================================
+   67 PARÇALARI
+========================================================= */
+
+const pieceLocations=[
+
+    [3.5,1.5],
+    [7.5,1.5],
+    [12.5,1.5],
+    [3.5,3.5],
+    [9.5,3.5],
+    [12.5,5.5],
+    [2.5,7.5],
+    [9.5,7.5],
+    [5.5,9.5],
+    [11.5,11.5]
+
+];
+
+let pieces=[];
+
+function resetPieces(){
+
+    pieces=pieceLocations.map((p,i)=>({
+
+        x:p[0],
+        y:p[1],
+
+        taken:false,
+
+        phase:i*.7
+
+    }));
+
+}
+
+resetPieces();
+
+
+/* =========================================================
+   NPC
+========================================================= */
+
+const npc={
+
+    x:12.5,
+    y:13.5,
+
+    angle:0,
+
+    speed:1.45,
+
+    active:false,
+
+    state:"sleep",
+
+    path:[],
+
+    pathIndex:0,
+
+    repathTimer:0,
+
+    lastPlayerX:12.5,
+    lastPlayerY:13.5,
+
+    lostTimer:0
+
+};
+
+
+/* =========================================================
+   NPC GRID YOL BULMA
+   Eski kodun en büyük problemi burada çözülüyor.
+========================================================= */
+
+function gridKey(x,y){
+    return x+","+y;
+}
+
+
+function cellCenter(cx,cy){
+    return{
+        x:cx+.5,
+        y:cy+.5
+    };
+}
+
+
+function findPath(sx,sy,tx,ty){
+
+    const startX=Math.floor(sx);
+    const startY=Math.floor(sy);
+
+    const targetX=Math.floor(tx);
+    const targetY=Math.floor(ty);
+
+    if(
+        isWall(targetX+.5,targetY+.5)
+    ){
+        return [];
+    }
+
+    const queue=[];
+
+    const visited=new Set();
+
+    const previous=new Map();
+
+    const start=gridKey(startX,startY);
+
+    queue.push([
+        startX,
+        startY
+    ]);
+
+    visited.add(start);
+
+    const dirs=[
+        [1,0],
+        [-1,0],
+        [0,1],
+        [0,-1]
+    ];
+
+    while(queue.length){
+
+        const [x,y]=queue.shift();
+
+        if(
+            x===targetX &&
+            y===targetY
+        ){
+
+            const result=[];
+
+            let current=gridKey(x,y);
+
+            while(current!==start){
+
+                const [cx,cy]=current
+                    .split(",")
+                    .map(Number);
+
+                result.unshift(
+                    cellCenter(cx,cy)
+                );
+
+                current=previous.get(current);
+
+                if(!current)
+                    break;
+            }
+
+            return result;
+        }
+
+        for(const [dx,dy] of dirs){
+
+            const nx=x+dx;
+            const ny=y+dy;
+
+            if(
+                nx<0 ||
+                ny<0 ||
+                nx>=MW ||
+                ny>=MH
+            )
+                continue;
+
+            if(
+                MAP[ny][nx]==="#"
+            )
+                continue;
+
+            const key=gridKey(nx,ny);
+
+            if(visited.has(key))
+                continue;
+
+            visited.add(key);
+
+            previous.set(
+                key,
+                gridKey(x,y)
+            );
+
+            queue.push([
+                nx,
+                ny
+            ]);
+        }
+    }
+
+    return [];
+}
+
+
+/* =========================================================
+   GÖRÜŞ
+========================================================= */
+
+function hasLineOfSight(ax,ay,bx,by){
+
+    const dx=bx-ax;
+    const dy=by-ay;
+
+    const d=Math.hypot(dx,dy);
+
+    const steps=Math.ceil(d/.08);
+
+    for(let i=1;i<steps;i++){
+
+        const t=i/steps;
+
+        const x=ax+dx*t;
+        const y=ay+dy*t;
+
+        if(isWall(x,y))
+            return false;
+    }
+
+    return true;
+}
+
+
+function npcCanSeePlayer(){
+
+    const dx=player.x-npc.x;
+    const dy=player.y-npc.y;
+
+    const d=Math.hypot(dx,dy);
+
+    if(d>9)
+        return false;
+
+    const a=Math.atan2(dy,dx);
+
+    const diff=Math.abs(
+        angleDifference(a,npc.angle)
+    );
+
+    if(
+        d>.8 &&
+        diff>1.05
+    )
+        return false;
+
+    return hasLineOfSight(
+        npc.x,
+        npc.y,
+        player.x,
+        player.y
+    );
+}
+
+
+/* =========================================================
+   NPC YOLU GÜNCELLE
+========================================================= */
+
+function recalculateNPCPath(targetX,targetY){
+
+    npc.path=findPath(
+        npc.x,
+        npc.y,
+        targetX,
+        targetY
+    );
+
+    npc.pathIndex=0;
+}
+
+
+/* =========================================================
+   NPC HAREKET
+========================================================= */
+
+function moveNPC(dt){
+
+    if(
+        !npc.path.length ||
+        npc.pathIndex>=npc.path.length
+    ){
+        return true;
+    }
+
+    const target=npc.path[npc.pathIndex];
+
+    const dx=target.x-npc.x;
+    const dy=target.y-npc.y;
+
+    const d=Math.hypot(dx,dy);
+
+    if(d<.12){
+
+        npc.pathIndex++;
+
+        return false;
+    }
+
+    npc.angle=Math.atan2(dy,dx);
+
+    const step=Math.min(
+        d,
+        npc.speed*dt
+    );
+
+    const nx=
+        npc.x+
+        Math.cos(npc.angle)*step;
+
+    const ny=
+        npc.y+
+        Math.sin(npc.angle)*step;
+
+    if(canMove(nx,npc.y,.22)){
+        npc.x=nx;
+    }
+
+    if(canMove(npc.x,ny,.22)){
+        npc.y=ny;
+    }
+
+    return false;
+}
+
+
+/* =========================================================
+   NPC AI
+========================================================= */
+
+function updateNPC(dt){
+
+    if(!npc.active)
+        return;
+
+    const sees=npcCanSeePlayer();
+
+    if(sees){
+
+        npc.state="chase";
+
+        npc.lastPlayerX=player.x;
+        npc.lastPlayerY=player.y;
+
+        npc.lostTimer=0;
+
+    }else if(npc.state==="chase"){
+
+        npc.lostTimer+=dt;
+
+        if(npc.lostTimer>1.2){
+
+            npc.state="search";
+
+            npc.repathTimer=0;
+        }
+    }
+
+
+    npc.repathTimer-=dt;
+
+
+    if(
+        npc.state==="chase"
+    ){
+
+        if(
+            npc.repathTimer<=0
+        ){
+
+            recalculateNPCPath(
+                player.x,
+                player.y
+            );
+
+            npc.repathTimer=.35;
+        }
+
+        moveNPC(dt);
+
+    }
+
+    else if(
+        npc.state==="search"
+    ){
+
+        if(
+            npc.repathTimer<=0
+        ){
+
+            recalculateNPCPath(
+                npc.lastPlayerX,
+                npc.lastPlayerY
+            );
+
+            npc.repathTimer=.5;
+        }
+
+        const arrived=moveNPC(dt);
+
+        if(
+            arrived ||
+            distance(
+                npc.x,
+                npc.y,
+                npc.lastPlayerX,
+                npc.lastPlayerY
+            )<.4
+        ){
+
+            npc.state="wander";
+
+            npc.repathTimer=0;
+        }
+
+    }
+
+    else if(
+        npc.state==="wander"
+    ){
+
+        if(
+            !npc.path.length ||
+            npc.pathIndex>=npc.path.length ||
+            npc.repathTimer<=0
+        ){
+
+            let tx=player.x;
+            let ty=player.y;
+
+            for(let i=0;i<20;i++){
+
+                const rx=
+                    1+
+                    Math.floor(
+                        Math.random()*(MW-2)
+                    );
+
+                const ry=
+                    1+
+                    Math.floor(
+                        Math.random()*(MH-2)
+                    );
+
+                if(
+                    MAP[ry][rx]==="."
+                ){
+
+                    tx=rx+.5;
+                    ty=ry+.5;
+                    break;
+                }
+            }
+
+            recalculateNPCPath(tx,ty);
+
+            npc.repathTimer=3+
+                Math.random()*3;
+        }
+
+        moveNPC(dt);
+    }
+
+
+    const d=distance(
+        player.x,
+        player.y,
+        npc.x,
+        npc.y
+    );
+
+    const warning=
+        document.getElementById("warning");
+
+    warning.style.opacity=
+        d<4 ? "1" : "0";
+
+    if(d<.55){
+        caught();
+    }
+}
+
+
+/* =========================================================
+   OYUNCU HAREKET
+========================================================= */
+
+function updatePlayer(dt){
+
+    if(!started)
+        return;
+
+    const speed=
+        game==="apartment" ? 2.8 :
+        game==="oasis" ? 4.0 :
+        game==="house" ? 2.7 :
+        game==="upstairs" ? 2.4 :
+        0;
+
+    const rotate=2.6;
+
+    if(keys["ArrowLeft"])
+        player.angle-=rotate*dt;
+
+    if(keys["ArrowRight"])
+        player.angle+=rotate*dt;
+
+    let forward=0;
+    let strafe=0;
+
+    if(keys["KeyW"])
+        forward++;
+
+    if(keys["KeyS"])
+        forward--;
+
+    if(keys["KeyA"])
+        strafe--;
+
+    if(keys["KeyD"])
+        strafe++;
+
+
+    let mx=
+        Math.cos(player.angle)*
+        forward*
+        speed*
+        dt;
+
+    let my=
+        Math.sin(player.angle)*
+        forward*
+        speed*
+        dt;
+
+
+    mx+=
+        Math.cos(
+            player.angle+Math.PI/2
+        )*
+        strafe*
+        speed*
+        dt;
+
+    my+=
+        Math.sin(
+            player.angle+Math.PI/2
+        )*
+        strafe*
+        speed*
+        dt;
+
+
+    if(
+        game==="apartment"
+    ){
+
+        if(canMove(player.x+mx,player.y,.2))
+            player.x+=mx;
+
+        if(canMove(player.x,player.y+my,.2))
+            player.y+=my;
+
+    }
+
+    else if(
+        game==="oasis"
+    ){
+
+        moveOasisPlayer(mx,my);
+
+    }
+
+    else if(
+        game==="house" ||
+        game==="upstairs"
+    ){
+
+        moveHousePlayer(mx,my);
+
+    }
+}
+
+
+/* =========================================================
+   RAYCAST
+========================================================= */
+
+function castRay(angle){
+
+    let d=0;
+
+    const cos=Math.cos(angle);
+    const sin=Math.sin(angle);
+
+    while(d<30){
+
+        d+=.025;
+
+        const x=
+            player.x+
+            cos*d;
+
+        const y=
+            player.y+
+            sin*d;
+
+        if(isWall(x,y))
+            return d;
+    }
+
+    return 30;
+}
+
+
+/* =========================================================
+   APARTMAN ÇİZİM
+========================================================= */
+
+function drawApartment(){
+
+    const sky=
+        ctx.createLinearGradient(
+            0,0,0,H/2
+        );
+
+    sky.addColorStop(0,"#020202");
+    sky.addColorStop(1,"#292929");
+
+    ctx.fillStyle=sky;
+    ctx.fillRect(0,0,W,H/2);
+
+
+    const floor=
+        ctx.createLinearGradient(
+            0,H/2,0,H
+        );
+
+    floor.addColorStop(0,"#1b1b1b");
+    floor.addColorStop(1,"#000");
+
+    ctx.fillStyle=floor;
+    ctx.fillRect(0,H/2,W,H/2);
+
+
+    const rays=Math.min(W,1000);
+    const column=W/rays;
+
+    for(let i=0;i<rays;i++){
+
+        const camera=i/rays-.5;
+
+        const angle=
+            player.angle+
+            camera*(Math.PI/3);
+
+        const d=castRay(angle);
+
+        const corrected=
+            d*
+            Math.cos(
+                angle-player.angle
+            );
+
+        const height=
+            H/
+            Math.max(corrected,.01)
+            *.9;
+
+        const top=
+            H/2-height/2;
+
+        let light=
+            180-corrected*12;
+
+        light=clamp(light,20,180);
+
+        ctx.fillStyle=
+            `rgb(${light},${light},${light})`;
+
+        ctx.fillRect(
+            i*column,
+            top,
+            column+1,
+            height
+        );
+    }
+}
+
+
+/* =========================================================
+   GÖRÜNEN NESNE
+========================================================= */
+
+function visibleObject(x,y){
+
+    const dx=x-player.x;
+    const dy=y-player.y;
+
+    const d=Math.hypot(dx,dy);
+
+    let a=
+        Math.atan2(dy,dx)-
+        player.angle;
+
+    while(a>Math.PI)a-=Math.PI*2;
+    while(a<-Math.PI)a+=Math.PI*2;
+
+    if(Math.abs(a)>Math.PI/6)
+        return null;
+
+    const wallDistance=
+        castRay(
+            player.angle+a
+        );
+
+    if(wallDistance<d-.15)
+        return null;
+
+    return{
+        distance:d,
+        angle:a
+    };
+}
+
+
+/* =========================================================
+   67 ÇİZ
+========================================================= */
+
+function drawPieces(time){
+
+    const visible=[];
+
+    for(const piece of pieces){
+
+        if(piece.taken)
+            continue;
+
+        const data=
+            visibleObject(
+                piece.x,
+                piece.y
+            );
+
+        if(data){
+
+            visible.push({
+                piece,
+                distance:data.distance,
+                angle:data.angle
+            });
+
+        }
+    }
+
+    visible.sort(
+        (a,b)=>b.distance-a.distance
+    );
+
+    for(const obj of visible){
+
+        const p=obj.piece;
+
+        const x=
+            W/2+
+            (
+                obj.angle/
+                (Math.PI/3)
+            )*W;
+
+        const size=Math.min(
+            150,
+            H/
+            Math.max(
+                obj.distance,
+                .1
+            )*.5
+        );
+
+        const y=
+            H/2+
+            Math.sin(
+                time*.004+
+                p.phase
+            )*8;
+
+        ctx.save();
+
+        ctx.textAlign="center";
+        ctx.textBaseline="middle";
+
+        ctx.font=
+            "bold "+
+            Math.max(18,size)+
+            "px Arial";
+
+        ctx.shadowColor="#ffff00";
+        ctx.shadowBlur=25;
+
+        ctx.fillStyle="#ffff33";
+
+        ctx.fillText(
+            "67",
+            x,
+            y
+        );
+
+        ctx.restore();
+    }
+}
+
+
+/* =========================================================
+   NPC ÇİZ
+========================================================= */
+
+function drawNPC(time){
+
+    if(!npc.active)
+        return;
+
+    const data=
+        visibleObject(
+            npc.x,
+            npc.y
+        );
+
+    if(!data)
+        return;
+
+    const x=
+        W/2+
+        (
+            data.angle/
+            (Math.PI/3)
+        )*W;
+
+    const size=Math.min(
+        250,
+        H/
+        Math.max(
+            data.distance,
+            .1
+        )*.9
+    );
+
+    const y=
+        H/2+
+        Math.sin(time*.004)*4;
+
+    ctx.save();
+
+    ctx.fillStyle="#111";
+
+    ctx.shadowColor="#ff0000";
+    ctx.shadowBlur=20;
+
+    ctx.beginPath();
+
+    ctx.ellipse(
+        x,
+        y+size*.2,
+        size*.2,
+        size*.42,
+        0,
+        0,
+        Math.PI*2
+    );
+
+    ctx.fill();
+
+
+    ctx.fillStyle="#ccc";
+
+    ctx.beginPath();
+
+    ctx.arc(
+        x,
+        y-size*.13,
+        size*.16,
+        0,
+        Math.PI*2
+    );
+
+    ctx.fill();
+
+
+    ctx.fillStyle="#ff2222";
+
+    ctx.beginPath();
+
+    ctx.arc(
+        x-size*.055,
+        y-size*.15,
+        Math.max(2,size*.025),
+        0,
+        Math.PI*2
+    );
+
+    ctx.fill();
+
+    ctx.beginPath();
+
+    ctx.arc(
+        x+size*.055,
+        y-size*.15,
+        Math.max(2,size*.025),
+        0,
+        Math.PI*2
+    );
+
+    ctx.fill();
+
+    ctx.restore();
+}
+
+
+/* =========================================================
+   ÇIKIŞ KAPISI
+========================================================= */
+
+function drawEscapeDoor(){
+
+    const data=
+        visibleObject(
+            spawn.x,
+            spawn.y
+        );
+
+    if(!data)
+        return;
+
+    const x=
+        W/2+
+        (
+            data.angle/
+            (Math.PI/3)
+        )*W;
+
+    const size=Math.min(
+        230,
+        H/
+        Math.max(
+            data.distance,
+            .1
+        )
+    );
+
+    ctx.save();
+
+    ctx.strokeStyle=
+        escapeUnlocked ?
+        "#00ff88" :
+        "#555";
+
+    ctx.lineWidth=8;
+
+    ctx.shadowColor=
+        escapeUnlocked ?
+        "#00ff88" :
+        "#555";
+
+    ctx.shadowBlur=25;
+
+    ctx.strokeRect(
+        x-size*.35,
+        H/2-size*.55,
+        size*.7,
+        size*1.1
+    );
+
+    ctx.fillStyle=
+        escapeUnlocked ?
+        "#00ff88" :
+        "#777";
+
+    ctx.font=
+        "bold "+
+        Math.max(
+            22,
+            size*.2
+        )+
+        "px Arial";
+
+    ctx.textAlign="center";
+
+    ctx.fillText(
+        escapeUnlocked ?
+        "ÇIKIŞ" :
+        "67",
+        x,
+        H/2
+    );
+
+    ctx.restore();
+}
+
+
+/* =========================================================
+   VAHA
+========================================================= */
+
+const oasis={
+
+    width:140,
+    height:100,
+
+    objects:[],
+
+    houseEntrance:{
+        x:48,
+        y:-30
+    }
+
+};
+
+
+function createOasis(){
+
+    oasis.objects=[];
+
+    /* Ağaçlar */
+
+    for(let i=0;i<85;i++){
+
+        let x,y;
+
+        do{
+
+            x=Math.random()*130-65;
+            y=Math.random()*90-45;
+
+        }while(
+            distance(x,y,0,0)<8 ||
+            distance(
+                x,y,
+                oasis.houseEntrance.x,
+                oasis.houseEntrance.y
+            )<8
+        );
+
+        oasis.objects.push({
+
+            type:"tree",
+            x,
+            y,
+            size:1+Math.random()*1.4
+
+        });
+    }
+
+
+    /* Kayalar */
+
+    for(let i=0;i<45;i++){
+
+        oasis.objects.push({
+
+            type:"rock",
+
+            x:Math.random()*130-65,
+            y:Math.random()*90-45,
+
+            size:.4+Math.random()*.7
+        });
+    }
+
+
+    /* Çiçekler */
+
+    for(let i=0;i<130;i++){
+
+        oasis.objects.push({
+
+            type:"flower",
+
+            x:Math.random()*130-65,
+            y:Math.random()*90-45,
+
+            size:.15+Math.random()*.2
+        });
+    }
+
+
+    /* Gölet */
+
+    oasis.objects.push({
+
+        type:"lake",
+        x:-15,
+        y:8,
+        size:8,
+        solid:true
+
+    });
+
+
+    /* Ev */
+
+    oasis.objects.push({
+
+        type:"house",
+        x:48,
+        y:-30,
+        size:3
+
+    });
+
+}
+
+createOasis();
+
+
+/* =========================================================
+   VAHA ÇARPIŞMA
+========================================================= */
+
+function oasisSolidAt(x,y,r=.35){
+
+    for(const obj of oasis.objects){
+
+        if(
+            obj.type==="tree"
+        ){
+
+            const rr=
+                .65+
+                obj.size*.25;
+
+            if(
+                distance(
+                    x,y,
+                    obj.x,obj.y
+                )<
+                rr+r
+            ){
+                return true;
+            }
+        }
+
+
+        if(
+            obj.type==="rock"
+        ){
+
+            const rr=
+                obj.size*.7;
+
+            if(
+                distance(
+                    x,y,
+                    obj.x,obj.y
+                )<
+                rr+r
+            ){
+                return true;
+            }
+        }
+
+
+        if(
+            obj.type==="lake"
+        ){
+
+            const dx=
+                (x-obj.x)/(obj.size*2);
+
+            const dy=
+                (y-obj.y)/(obj.size*.8);
+
+            if(
+                dx*dx+
+                dy*dy<
+                1
+            ){
+                return true;
+            }
+        }
+
+    }
+
+    return false;
+}
+
+
+function moveOasisPlayer(mx,my){
+
+    const nx=player.x+mx;
+    const ny=player.y+my;
+
+    if(
+        Math.abs(nx)<70 &&
+        Math.abs(ny)<50 &&
+        !oasisSolidAt(nx,player.y,.28)
+    ){
+        player.x=nx;
+    }
+
+    if(
+        Math.abs(player.x)<70 &&
+        Math.abs(ny)<50 &&
+        !oasisSolidAt(player.x,ny,.28)
+    ){
+        player.y=ny;
+    }
+}
+
+
+/* =========================================================
+   VAHA ÇİZ
+========================================================= */
+
+function drawOasis(){
+
+    const sky=
+        ctx.createLinearGradient(
+            0,0,0,H
+        );
+
+    sky.addColorStop(0,"#62c7ff");
+    sky.addColorStop(.55,"#c7eeff");
+    sky.addColorStop(1,"#91d66a");
+
+    ctx.fillStyle=sky;
+    ctx.fillRect(0,0,W,H);
+
+
+    /* Güneş */
+
+    ctx.fillStyle="rgba(255,244,170,.9)";
+
+    ctx.beginPath();
+
+    ctx.arc(
+        W-100,
+        100,
+        48,
+        0,
+        Math.PI*2
+    );
+
+    ctx.fill();
+
+
+    /* Uzak tepeler */
+
+    ctx.fillStyle="#579d4e";
+
+    ctx.beginPath();
+
+    ctx.moveTo(0,H*.54);
+
+    for(let x=0;x<=W;x+=60){
+
+        const y=
+            H*.48+
+            Math.sin(x*.008)*30+
+            Math.sin(x*.021)*15;
+
+        ctx.lineTo(x,y);
+    }
+
+    ctx.lineTo(W,H);
+    ctx.lineTo(0,H);
+
+    ctx.fill();
+
+
+    /* Zemin */
+
+    ctx.fillStyle="#69b94f";
+
+    ctx.fillRect(
+        0,
+        H*.55,
+        W,
+        H*.45
+    );
+
+
+    const visible=[];
+
+    for(const obj of oasis.objects){
+
+        const dx=obj.x-player.x;
+        const dy=obj.y-player.y;
+
+        const d=Math.hypot(dx,dy);
+
+        if(d>90)
+            continue;
+
+        let a=
+            Math.atan2(dy,dx)-
+            player.angle;
+
+        while(a>Math.PI)a-=Math.PI*2;
+        while(a<-Math.PI)a+=Math.PI*2;
+
+        if(Math.abs(a)>Math.PI/2)
+            continue;
+
+        visible.push({
+            obj,
+            distance:d,
+            angle:a
+        });
+    }
+
+
+    visible.sort(
+        (a,b)=>b.distance-a.distance
+    );
+
+
+    for(const item of visible){
+
+        drawOasisObject(
+            item.obj,
+            item.distance,
+            item.angle
+        );
+    }
+}
+
+
+/* =========================================================
+   VAHA NESNELERİ
+========================================================= */
+
+function drawOasisObject(
+    obj,
+    d,
+    a
+){
+
+    const x=
+        W/2+
+        (
+            a/
+            (Math.PI/2)
+        )*
+        W/2;
+
+    const perspective=
+        H/
+        Math.max(d,.5);
+
+
+    if(obj.type==="tree"){
+
+        const s=
+            perspective*
+            obj.size*
+            1.5;
+
+        const ground=
+            H*.70+
+            Math.min(
+                100,
+                d*2
+            );
+
+
+        ctx.fillStyle="#71452c";
+
+        ctx.fillRect(
+            x-s*.10,
+            ground-s*.8,
+            s*.2,
+            s*.8
+        );
+
+
+        ctx.fillStyle="#246b36";
+
+        ctx.beginPath();
+
+        ctx.arc(
+            x,
+            ground-s*.95,
+            s*.55,
+            0,
+            Math.PI*2
+        );
+
+        ctx.fill();
+
+
+        ctx.fillStyle="#328548";
+
+        ctx.beginPath();
+
+        ctx.arc(
+            x-s*.3,
+            ground-s*1.1,
+            s*.4,
+            0,
+            Math.PI*2
+        );
+
+        ctx.fill();
+
+
+        ctx.beginPath();
+
+        ctx.arc(
+            x+s*.3,
+            ground-s*1.08,
+            s*.4,
+            0,
+            Math.PI*2
+        );
+
+        ctx.fill();
+    }
+
+
+    else if(obj.type==="rock"){
+
+        const s=
+            perspective*
+            obj.size;
+
+        const ground=
+            H*.70+
+            Math.min(
+                100,
+                d*2
+            );
+
+        ctx.fillStyle="#777";
+
+        ctx.beginPath();
+
+        ctx.ellipse(
+            x,
+            ground,
+            s,
+            s*.55,
+            0,
+            0,
+            Math.PI*2
+        );
+
+        ctx.fill();
+    }
+
+
+    else if(obj.type==="flower"){
+
+        const s=
+            perspective*
+            obj.size;
+
+        const ground=
+            H*.70+
+            Math.min(
+                100,
+                d*2
+            );
+
+        ctx.fillStyle="#397c36";
+
+        ctx.fillRect(
+            x,
+            ground-s*2,
+            2,
+            s*2
+        );
+
+        ctx.fillStyle="#ffe44e";
+
+        ctx.beginPath();
+
+        ctx.arc(
+            x,
+            ground-s*2,
+            s*1.3,
+            0,
+            Math.PI*2
+        );
+
+        ctx.fill();
+    }
+
+
+    else if(obj.type==="lake"){
+
+        const s=
+            perspective*
+            obj.size*2;
+
+        const ground=H*.72;
+
+        ctx.fillStyle="#36a9d8";
+
+        ctx.beginPath();
+
+        ctx.ellipse(
+            x,
+            ground,
+            s*2,
+            s*.8,
+            0,
+            0,
+            Math.PI*2
+        );
+
+        ctx.fill();
+
+        ctx.strokeStyle=
+            "rgba(255,255,255,.4)";
+
+        ctx.lineWidth=3;
+
+        for(let i=-2;i<3;i++){
+
+            ctx.beginPath();
+
+            ctx.arc(
+                x+i*s*.5,
+                ground,
+                s*.4,
+                0,
+                Math.PI
+            );
+
+            ctx.stroke();
+        }
+    }
+
+
+    else if(obj.type==="house"){
+
+        drawHouse(
+            x,
+            H*.70,
+            perspective*obj.size
+        );
+    }
+}
+
+
+/* =========================================================
+   VAHA EVİ
+========================================================= */
+
+function drawHouse(x,y,s){
+
+    ctx.fillStyle="rgba(0,0,0,.25)";
+
+    ctx.beginPath();
+
+    ctx.ellipse(
+        x,
+        y+s*.05,
+        s*1.5,
+        s*.35,
+        0,
+        0,
+        Math.PI*2
+    );
+
+    ctx.fill();
+
+
+    ctx.fillStyle="#d7b878";
+
+    ctx.fillRect(
+        x-s,
+        y-s*1.5,
+        s*2,
+        s*1.5
+    );
+
+
+    ctx.fillStyle="#9a4d35";
+
+    ctx.beginPath();
+
+    ctx.moveTo(
+        x-s*1.25,
+        y-s*1.5
+    );
+
+    ctx.lineTo(
+        x,
+        y-s*2.5
+    );
+
+    ctx.lineTo(
+        x+s*1.25,
+        y-s*1.5
+    );
+
+    ctx.closePath();
+
+    ctx.fill();
+
+
+    ctx.fillStyle="#68432d";
+
+    ctx.fillRect(
+        x-s*.18,
+        y-s*.9,
+        s*.36,
+        s*.9
+    );
+
+
+    ctx.fillStyle="#83d9e8";
+
+    ctx.fillRect(
+        x-s*.72,
+        y-s*1.1,
+        s*.42,
+        s*.42
+    );
+
+    ctx.fillRect(
+        x+s*.3,
+        y-s*1.1,
+        s*.42,
+        s*.42
+    );
+}
+
+
+/* =========================================================
+   EV İÇİ
+========================================================= */
+
+const HOUSE_W=14;
+const HOUSE_H=10;
+
+
+/*
+    Ev içi haritası
+
+    # duvar
+    . zemin
+*/
+
+const HOUSE_MAP=[
+
+"##############",
+"#............#",
+"#............#",
+"#..####......#",
+"#............#",
+"#......###...#",
+"#............#",
+"#............#",
+"#............#",
+"##############"
+
+];
+
+function houseWall(x,y){
+
+    const mx=Math.floor(x);
+    const my=Math.floor(y);
+
+    if(
+        mx<0 ||
+        my<0 ||
+        mx>=HOUSE_W ||
+        my>=HOUSE_H
+    )
+        return true;
+
+    return HOUSE_MAP[my][mx]==="#";
+}
+
+
+function houseCanMove(x,y){
+
+    const r=.22;
+
+    return(
+        !houseWall(x-r,y-r) &&
+        !houseWall(x+r,y-r) &&
+        !houseWall(x-r,y+r) &&
+        !houseWall(x+r,y+r)
+    );
+}
+
+
+function moveHousePlayer(mx,my){
+
+    if(
+        houseCanMove(
+            player.x+mx,
+            player.y
+        )
+    ){
+        player.x+=mx;
+    }
+
+    if(
+        houseCanMove(
+            player.x,
+            player.y+my
+        )
+    ){
+        player.y+=my;
+    }
+}
+
+
+/* =========================================================
+   EV GÖRÜNTÜSÜ
+========================================================= */
+
+function drawHouseInterior(){
+
+    /*
+        Basit ama daha gerçekçi bir
+        pseudo-3D raycaster.
+    */
+
+    const sky=
+        ctx.createLinearGradient(
+            0,0,0,H/2
+        );
+
+    sky.addColorStop(0,"#30261f");
+    sky.addColorStop(1,"#8a6d52");
+
+    ctx.fillStyle=sky;
+    ctx.fillRect(0,0,W,H/2);
+
+
+    const floor=
+        ctx.createLinearGradient(
+            0,H/2,0,H
+        );
+
+    floor.addColorStop(0,"#87613e");
+    floor.addColorStop(1,"#3b2518");
+
+    ctx.fillStyle=floor;
+    ctx.fillRect(0,H/2,W,H/2);
+
+
+    const rays=Math.min(W,1000);
+    const column=W/rays;
+
+    for(let i=0;i<rays;i++){
+
+        const camera=i/rays-.5;
+
+        const angle=
+            player.angle+
+            camera*(Math.PI/3);
+
+        const d=
+            castHouseRay(angle);
+
+        const corrected=
+            d*
+            Math.cos(
+                angle-player.angle
+            );
+
+        const height=
+            H/
+            Math.max(corrected,.01)
+            *.95;
+
+        const top=
+            H/2-height/2;
+
+        const light=
+            clamp(
+                190-corrected*10,
+                35,
+                190
+            );
+
+        ctx.fillStyle=
+            `rgb(${light},${light*.78},${light*.58})`;
+
+        ctx.fillRect(
+            i*column,
+            top,
+            column+1,
+            height
+        );
+    }
+
+
+    drawHouseObjects();
+}
+
+
+function castHouseRay(angle){
+
+    let d=0;
+
+    const cos=Math.cos(angle);
+    const sin=Math.sin(angle);
+
+    while(d<30){
+
+        d+=.025;
+
+        const x=
+            player.x+
+            cos*d;
+
+        const y=
+            player.y+
+            sin*d;
+
+        if(houseWall(x,y))
+            return d;
+    }
+
+    return 30;
+}
+
+
+/* =========================================================
+   EV GÖREV NESNELERİ
+========================================================= */
+
+const home={
+
+    cabinet:{
+        x:3.2,
+        y:2.2,
+
+        open:0,
+        target:0,
+
+        foodTaken:false
+    },
+
+    microwave:{
+        x:10.4,
+        y:2.2,
+
+        door:0,
+        targetDoor:0,
+
+        foodInside:false,
+        cooking:false,
+        cooked:false,
+
+        cookTimer:0
+    },
+
+    table:{
+        x:6.5,
+        y:5.5
+    },
+
+    tv:{
+        x:10.8,
+        y:6.8,
+
+        on:false
+    },
+
+    sink:{
+        x:2.5,
+        y:7.1
+    },
+
+    stairs:{
+        x:11.5,
+        y:7.5
+    },
+
+    bed:{
+        x:6.5,
+        y:2.0
+    },
+
+    plate:false,
+
+    food:false,
+
+    cookedFood:false,
+
+    eating:false,
+
+    task:0
+};
+
+
+/* =========================================================
+   EV NESNELERİNİ ÇİZ
+========================================================= */
+
+function drawHouseObjects(){
+
+    /*
+       Dolap
+    */
+
+    drawCabinet(
+        home.cabinet.x,
+        home.cabinet.y,
+        home.cabinet.open
+    );
+
+
+    /*
+       Mikrodalga
+    */
+
+    drawMicrowave(
+        home.microwave.x,
+        home.microwave.y,
+        home.microwave.door
+    );
+
+
+    /*
+       Masa
+    */
+
+    drawTable(
+        home.table.x,
+        home.table.y
+    );
+
+
+    /*
+       TV
+    */
+
+    drawTV(
+        home.tv.x,
+        home.tv.y,
+        home.tv.on
+    );
+
+
+    /*
+       Lavabo
+    */
+
+    drawSink(
+        home.sink.x,
+        home.sink.y
+    );
+
+
+    /*
+       Merdiven
+    */
+
+    drawStairs(
+        home.stairs.x,
+        home.stairs.y
+    );
+
+
+    /*
+       Üst katta yatak
+    */
+
+    if(game==="upstairs"){
+
+        drawBed(
+            home.bed.x,
+            home.bed.y
+        );
+    }
+}
+
+
+/* =========================================================
+   2D EV NESNE ÇİZİMLERİ
+========================================================= */
+
+function worldToScreen(x,y){
+
+    const dx=x-player.x;
+    const dy=y-player.y;
+
+    const d=Math.hypot(dx,dy);
+
+    let a=
+        Math.atan2(dy,dx)-
+        player.angle;
+
+    while(a>Math.PI)a-=Math.PI*2;
+    while(a<-Math.PI)a+=Math.PI*2;
+
+    if(Math.abs(a)>Math.PI/2)
+        return null;
+
+    const sx=
+        W/2+
+        (
+            a/
+            (Math.PI/2)
+        )*
+        W/2;
+
+    const scale=
+        H/
+        Math.max(d,.3);
+
+    const sy=
+        H*.70;
+
+    return{
+        x:sx,
+        y:sy,
+        scale,
+        distance:d,
+        angle:a
+    };
+}
+
+
+function drawCabinet(x,y,open){
+
+    const p=worldToScreen(x,y);
+
+    if(!p)
+        return;
+
+    const s=
+        clamp(
+            p.scale*.8,
+            30,
+            350
+        );
+
+    ctx.save();
+
+    ctx.fillStyle="#76502f";
+
+    ctx.fillRect(
+        p.x-s*.4,
+        p.y-s*.9,
+        s*.8,
+        s*.9
+    );
+
+
+    /*
+       İç kısım
+    */
+
+    if(open>.05){
+
+        ctx.fillStyle="#24170e";
+
+        ctx.fillRect(
+            p.x-s*.34,
+            p.y-s*.82,
+            s*.68,
+            s*.74
+        );
+
+
+        if(!home.cabinet.foodTaken){
+
+            ctx.fillStyle="#e9c45c";
+
+            ctx.fillRect(
+                p.x-s*.15,
+                p.y-s*.35,
+                s*.3,
+                s*.15
+            );
+        }
+    }
+
+
+    /*
+       Kapı animasyonu
+    */
+
+    ctx.save();
+
+    ctx.translate(
+        p.x-s*.4,
+        p.y-s*.9
+    );
+
+    ctx.rotate(
+        -open*.9
+    );
+
+    ctx.fillStyle="#946536";
+
+    ctx.fillRect(
+        0,
+        0,
+        s*.4,
+        s*.9
+    );
+
+    ctx.restore();
+
+    ctx.restore();
+}
+
+
+function drawMicrowave(x,y,door){
+
+    const p=worldToScreen(x,y);
+
+    if(!p)
+        return;
+
+    const s=
+        clamp(
+            p.scale*.55,
+            30,
+            280
+        );
+
+    ctx.save();
+
+    ctx.fillStyle="#444";
+
+    ctx.fillRect(
+        p.x-s*.55,
+        p.y-s*.5,
+        s*1.1,
+        s*.65
+    );
+
+
+    ctx.fillStyle="#111";
+
+    ctx.fillRect(
+        p.x-s*.42,
+        p.y-s*.38,
+        s*.65,
+        s*.42
+    );
+
+
+    if(home.microwave.cooking){
+
+        ctx.fillStyle=
+            Math.floor(
+                currentTime/250
+            )%2 ?
+            "#ffb300" :
+            "#ff6600";
+
+        ctx.beginPath();
+
+        ctx.arc(
+            p.x-s*.1,
+            p.y-s*.17,
+            s*.08,
+            0,
+            Math.PI*2
+        );
+
+        ctx.fill();
+    }
+
+
+    /*
+       Kapak
+    */
+
+    ctx.save();
+
+    ctx.translate(
+        p.x-s*.42,
+        p.y-s*.38
+    );
+
+    ctx.rotate(
+        door*.8
+    );
+
+    ctx.fillStyle=
+        "rgba(80,90,100,.75)";
+
+    ctx.fillRect(
+        0,
+        0,
+        s*.65,
+        s*.42
+    );
+
+    ctx.restore();
+
+
+    ctx.restore();
+}
+
+
+function drawTable(x,y){
+
+    const p=worldToScreen(x,y);
+
+    if(!p)
+        return;
+
+    const s=
+        clamp(
+            p.scale*.8,
+            40,
+            300
+        );
+
+    ctx.fillStyle="#70472c";
+
+    ctx.fillRect(
+        p.x-s*.55,
+        p.y-s*.15,
+        s*1.1,
+        s*.16
+    );
+
+    ctx.fillRect(
+        p.x-s*.45,
+        p.y-s*.05,
+        s*.1,
+        s*.7
+    );
+
+    ctx.fillRect(
+        p.x+s*.35,
+        p.y-s*.05,
+        s*.1,
+        s*.7
+    );
+
+
+    if(home.plate){
+
+        ctx.fillStyle="#eee";
+
+        ctx.beginPath();
+
+        ctx.ellipse(
+            p.x,
+            p.y-s*.2,
+            s*.18,
+            s*.07,
+            0,
+            0,
+            Math.PI*2
+        );
+
+        ctx.fill();
+
+        ctx.fillStyle="#d89539";
+
+        ctx.beginPath();
+
+        ctx.arc(
+            p.x,
+            p.y-s*.2,
+            s*.07,
+            0,
+            Math.PI*2
+        );
+
+        ctx.fill();
+    }
+}
+
+
+function drawTV(x,y,on){
+
+    const p=worldToScreen(x,y);
+
+    if(!p)
+        return;
+
+    const s=
+        clamp(
+            p.scale*.75,
+            40,
+            300
+        );
+
+    ctx.fillStyle="#171717";
+
+    ctx.fillRect(
+        p.x-s*.55,
+        p.y-s*.65,
+        s*1.1,
+        s*.65
+    );
+
+
+    ctx.fillStyle=
+        on ?
+        (
+            Math.floor(currentTime/500)%2 ?
+            "#385c82" :
+            "#27445f"
+        ) :
+        "#050505";
+
+    ctx.fillRect(
+        p.x-s*.46,
+        p.y-s*.56,
+        s*.92,
+        s*.45
+    );
+
+
+    if(on){
+
+        ctx.fillStyle="#eee";
+
+        ctx.font=
+            "bold "+
+            Math.max(
+                10,
+                s*.12
+            )+
+            "px Arial";
+
+        ctx.textAlign="center";
+
+        ctx.fillText(
+            "FİLM",
+            p.x,
+            p.y-s*.32
+        );
+    }
+}
+
+
+function drawSink(x,y){
+
+    const p=worldToScreen(x,y);
+
+    if(!p)
+        return;
+
+    const s=
+        clamp(
+            p.scale*.7,
+            30,
+            220
+        );
+
+    ctx.fillStyle="#b8b8b8";
+
+    ctx.fillRect(
+        p.x-s*.4,
+        p.y-s*.4,
+        s*.8,
+        s*.4
+    );
+
+    ctx.fillStyle="#777";
+
+    ctx.beginPath();
+
+    ctx.ellipse(
+        p.x,
+        p.y-s*.25,
+        s*.25,
+        s*.1,
+        0,
+        0,
+        Math.PI*2
+    );
+
+    ctx.fill();
+
+
+    ctx.strokeStyle="#aaa";
+    ctx.lineWidth=Math.max(2,s*.035);
+
+    ctx.beginPath();
+
+    ctx.arc(
+        p.x,
+        p.y-s*.55,
+        s*.12,
+        Math.PI,
+        Math.PI*2
+    );
+
+    ctx.stroke();
+}
+
+
+function drawStairs(x,y){
+
+    const p=worldToScreen(x,y);
+
+    if(!p)
+        return;
+
+    const s=
+        clamp(
+            p.scale*.7,
+            30,
+            250
+        );
+
+    ctx.fillStyle="#815535";
+
+    for(let i=0;i<5;i++){
+
+        ctx.fillRect(
+            p.x-s*.5+i*s*.12,
+            p.y-s*.1-i*s*.12,
+            s*.65,
+            s*.12
+        );
+    }
+}
+
+
+function drawBed(x,y){
+
+    const p=worldToScreen(x,y);
+
+    if(!p)
+        return;
+
+    const s=
+        clamp(
+            p.scale*.9,
+            50,
+            350
+        );
+
+    ctx.fillStyle="#563b2b";
+
+    ctx.fillRect(
+        p.x-s*.55,
+        p.y-s*.45,
+        s*1.1,
+        s*.65
+    );
+
+    ctx.fillStyle="#e8e0d2";
+
+    ctx.fillRect(
+        p.x-s*.48,
+        p.y-s*.4,
+        s*.96,
+        s*.42
+    );
+
+    ctx.fillStyle="#c4d4e8";
+
+    ctx.fillRect(
+        p.x-s*.42,
+        p.y-s*.35,
+        s*.3,
+        s*.25
+    );
+}
+
+
+/* =========================================================
+   EV GİRİŞİ
+========================================================= */
+
+function enterHouse(){
+
+    game="house";
+
+    player.x=6.5;
+    player.y=8;
+    player.angle=-Math.PI/2;
+
+    showMessage(
+        "🏠 Eve girdin.<br><br>"+
+        "İçeride seni bekleyen birkaç iş var."
+    );
+
+    updateHomeObjective();
+}
+
+
+/* =========================================================
+   ÜST KAT
+========================================================= */
+
+function enterUpstairs(){
+
+    game="upstairs";
+
+    player.x=6.5;
+    player.y=7;
+    player.angle=-Math.PI/2;
+
+    showMessage(
+        "Yukarı çıktın.<br>"+
+        "Yatak odasına git."
+    );
+
+    updateHomeObjective();
+}
+
+
+/* =========================================================
+   EV GÖREV SİSTEMİ
+========================================================= */
+
+function updateHomeObjective(){
+
+    const text=
+        document.getElementById(
+            "objectiveText"
+        );
+
+    if(game==="oasis"){
+
+        text.textContent=
+            "Evini bul. Uzaklarda bir yerde.";
+
+        return;
+    }
+
+
+    if(game==="house"){
+
+        switch(home.task){
+
+            case 0:
+                text.textContent=
+                    "1. Dolabı aç ve içindeki yemeği al.";
+                break;
+
+            case 1:
+                text.textContent=
+                    "2. Mikrodalgaya git ve yemeği içine koy.";
+                break;
+
+            case 2:
+                text.textContent=
+                    "3. Mikrodalgayı çalıştır. Pişmesini bekle.";
+                break;
+
+            case 3:
+                text.textContent=
+                    "4. Televizyonu aç.";
+                break;
+
+            case 4:
+                text.textContent=
+                    "5. Pişen yemeği mikrodalgadan çıkar.";
+                break;
+
+            case 5:
+                text.textContent=
+                    "6. Yemeği masaya götür.";
+                break;
+
+            case 6:
+                text.textContent=
+                    "7. Televizyonu aç ve yemek yemeye başla.";
+                break;
+
+            case 7:
+                text.textContent=
+                    "8. Tabağı mutfak lavabosuna götür.";
+                break;
+
+            case 8:
+                text.textContent=
+                    "9. Televizyonu kapat.";
+                break;
+
+            case 9:
+                text.textContent=
+                    "10. Üst kata çık.";
+                break;
+
+        }
+
+    }
+
+
+    if(game==="upstairs"){
+
+        text.textContent=
+            "11. Yatağa git ve E'ye bas.";
+    }
+}
+
+
+/* =========================================================
+   EV ETKİLEŞİMLERİ
+========================================================= */
+
+function interactHouse(){
+
+    /*
+       0
+       DOLAP
+    */
+
+    if(home.task===0){
+
+        if(
+            distance(
+                player.x,
+                player.y,
+                home.cabinet.x,
+                home.cabinet.y
+            )<2
+        ){
+
+            if(
+                home.cabinet.open<.9
+            ){
+
+                home.cabinet.target=1;
+
+                showMessage(
+                    "Dolabı açıyorsun..."
+                );
+
+                setTimeout(()=>{
+
+                    home.cabinet.foodTaken=true;
+                    home.food=true;
+
+                    home.task=1;
+
+                    updateHomeObjective();
+
+                    showMessage(
+                        "🍲 Yemeği aldın.<br>"+
+                        "Şimdi mikrodalgaya götür."
+                    );
+
+                },900);
+
+            }
+
+            return;
+        }
+    }
+
+
+    /*
+       1
+       MİKRODALGAYA YEMEK KOY
+    */
+
+    if(home.task===1){
+
+        if(
+            distance(
+                player.x,
+                player.y,
+                home.microwave.x,
+                home.microwave.y
+            )<2
+        ){
+
+            home.microwave.targetDoor=1;
+
+            setTimeout(()=>{
+
+                home.microwave.foodInside=true;
+                home.food=false;
+
+                home.task=2;
+
+                updateHomeObjective();
+
+                showMessage(
+                    "Yemeği mikrodalgaya koydun.<br>"+
+                    "E'ye tekrar basıp çalıştır."
+                );
+
+            },500);
+
+            return;
+        }
+    }
+
+
+    /*
+       2
+       MİKRODALGA ÇALIŞTIR
+    */
+
+    if(home.task===2){
+
+        if(
+            distance(
+                player.x,
+                player.y,
+                home.microwave.x,
+                home.microwave.y
+            )<2
+        ){
+
+            if(
+                !home.microwave.cooking
+            ){
+
+                home.microwave.cooking=true;
+                home.microwave.cookTimer=5;
+
+                showMessage(
+                    "♨ Mikrodalga çalışıyor...<br>"+
+                    "Yemek pişiyor."
+                );
+
+                return;
+            }
+        }
+    }
+
+
+    /*
+       3
+       TV AÇ
+    */
+
+    if(home.task===3){
+
+        if(
+            distance(
+                player.x,
+                player.y,
+                home.tv.x,
+                home.tv.y
+            )<2.3
+        ){
+
+            home.tv.on=true;
+
+            home.task=4;
+
+            updateHomeObjective();
+
+            showMessage(
+                "📺 Televizyonu açtın."
+            );
+
+            return;
+        }
+    }
+
+
+    /*
+       4
+       PİŞMİŞ YEMEĞİ AL
+    */
+
+    if(home.task===4){
+
+        if(
+            distance(
+                player.x,
+                player.y,
+                home.microwave.x,
+                home.microwave.y
+            )<2
+        ){
+
+            home.microwave.targetDoor=1;
+
+            setTimeout(()=>{
+
+                home.microwave.foodInside=false;
+                home.cookedFood=true;
+
+                home.task=5;
+
+                updateHomeObjective();
+
+                showMessage(
+                    "🍲 Yemek hazır!<br>"+
+                    "Şimdi masaya götür."
+                );
+
+            },450);
+
+            return;
+        }
+    }
+
+
+    /*
+       5
+       MASAYA
+    */
+
+    if(home.task===5){
+
+        if(
+            distance(
+                player.x,
+                player.y,
+                home.table.x,
+                home.table.y
+            )<2.3
+        ){
+
+            home.plate=true;
+            home.cookedFood=false;
+
+            home.task=6;
+
+            updateHomeObjective();
+
+            showMessage(
+                "Yemeği masaya koydun."
+            );
+
+            return;
+        }
+    }
+
+
+    /*
+       6
+       TV + YEMEK
+    */
+
+    if(home.task===6){
+
+        if(
+            distance(
+                player.x,
+                player.y,
+                home.tv.x,
+                home.tv.y
+            )<2.3
+        ){
+
+            home.tv.on=true;
+
+            home.eating=true;
+
+            home.task=7;
+
+            updateHomeObjective();
+
+            showMessage(
+                "📺 Film başladı.<br>"+
+                "🍲 Yemeğini yiyorsun..."
+            );
+
+            setTimeout(()=>{
+
+                if(
+                    home.task===7
+                ){
+
+                    home.eating=false;
+
+                    home.task=8;
+
+                    updateHomeObjective();
+
+                    showMessage(
+                        "Yemeğini bitirdin.<br>"+
+                        "Tabak lavaboya gitmeli."
+                    );
+                }
+
+            },4500);
+
+            return;
+        }
+    }
+
+
+    /*
+       7
+       LAVABO
+    */
+
+    if(home.task===7){
+
+        if(
+            distance(
+                player.x,
+                player.y,
+                home.sink.x,
+                home.sink.y
+            )<2
+        ){
+
+            home.plate=false;
+
+            home.task=8;
+
+            updateHomeObjective();
+
+            showMessage(
+                "🍽 Tabağı lavaboya bıraktın."
+            );
+
+            return;
+        }
+    }
+
+
+    /*
+       8
+       TV KAPAT
+    */
+
+    if(home.task===8){
+
+        if(
+            distance(
+                player.x,
+                player.y,
+                home.tv.x,
+                home.tv.y
+            )<2.3
+        ){
+
+            home.tv.on=false;
+
+            home.task=9;
+
+            updateHomeObjective();
+
+            showMessage(
+                "Televizyonu kapattın.<br>"+
+                "Artık yukarı çık."
+            );
+
+            return;
+        }
+    }
+
+
+    /*
+       9
+       MERDİVEN
+    */
+
+    if(home.task===9){
+
+        if(
+            distance(
+                player.x,
+                player.y,
+                home.stairs.x,
+                home.stairs.y
+            )<2.4
+        ){
+
+            enterUpstairs();
+
+            return;
+        }
+    }
+}
+
+
+/* =========================================================
+   ÜST KAT ETKİLEŞİM
+========================================================= */
+
+function interactUpstairs(){
+
+    if(
+        distance(
+            player.x,
+            player.y,
+            home.bed.x,
+            home.bed.y
+        )<2.5
+    ){
+
+        sleep();
+
+    }else{
+
+        showMessage(
+            "Yatak odasında yatağa git."
+        );
+    }
+}
+
+
+/* =========================================================
+   UYUMA
+========================================================= */
+
+function sleep(){
+
+    started=false;
+
+    const fade=
+        document.getElementById("fade");
+
+    fade.style.opacity="1";
+
+    setTimeout(()=>{
+
+        document.getElementById(
+            "ending"
+        ).style.display="flex";
+
+    },900);
+}
+
+
+/* =========================================================
+   MİKRODALGA GÜNCELLEME
+========================================================= */
+
+function updateMicrowave(dt){
+
+    if(
+        game!=="house"
+    )
+        return;
+
+
+    /*
+       Kapı animasyonu
+    */
+
+    const speed=3.5;
+
+    if(
+        home.microwave.door<
+        home.microwave.targetDoor
+    ){
+
+        home.microwave.door=
+            Math.min(
+                home.microwave.targetDoor,
+                home.microwave.door+
+                dt*speed
+            );
+
+    }else if(
+        home.microwave.door>
+        home.microwave.targetDoor
+    ){
+
+        home.microwave.door=
+            Math.max(
+                home.microwave.targetDoor,
+                home.microwave.door-
+                dt*speed
+            );
+    }
+
+
+    if(
+        home.microwave.cooking
+    ){
+
+        home.microwave.cookTimer-=dt;
+
+        if(
+            home.microwave.cookTimer<=0
+        ){
+
+            home.microwave.cooking=false;
+
+            home.microwave.cooked=true;
+
+            home.task=3;
+
+            /*
+               Mikrodalga kapağı otomatik
+               kapansın.
+            */
+
+            home.microwave.targetDoor=0;
+
+            updateHomeObjective();
+
+            showMessage(
+                "🔔 BİP!<br>"+
+                "Yemek pişti.<br>"+
+                "Şimdi televizyonu aç."
+            );
+        }
+    }
+}
+
+
+/* =========================================================
+   DOLAP ANİMASYONU
+========================================================= */
+
+function updateCabinet(dt){
+
+    if(
+        home.cabinet.open<
+        home.cabinet.target
+    ){
+
+        home.cabinet.open=
+            Math.min(
+                home.cabinet.target,
+                home.cabinet.open+
+                dt*2.5
+            );
+    }
+}
+
+
+/* =========================================================
+   ETKİLEŞİM ANA
+========================================================= */
+
+function interact(){
+
+    if(!started)
+        return;
+
+
+    if(game==="apartment"){
+
+        if(
+            escapeUnlocked &&
+            distance(
+                player.x,
+                player.y,
+                spawn.x,
+                spawn.y
+            )<1.6
+        ){
+
+            enterOasis();
+
+            return;
+        }
+
+        collectPiece();
+
+        return;
+    }
+
+
+    if(game==="oasis"){
+
+        const d=
+            distance(
+                player.x,
+                player.y,
+                oasis.houseEntrance.x,
+                oasis.houseEntrance.y
+            );
+
+        if(d<5){
+
+            enterHouse();
+
+        }else{
+
+            showMessage(
+                "Ev henüz biraz uzakta."
+            );
+        }
+
+        return;
+    }
+
+
+    if(game==="house"){
+
+        interactHouse();
+
+        return;
+    }
+
+
+    if(game==="upstairs"){
+
+        interactUpstairs();
+
+        return;
+    }
+}
+
+
+/* =========================================================
+   67 TOPLA
+========================================================= */
+
+function collectPiece(){
+
+    let nearest=null;
+    let nd=Infinity;
+
+    for(const piece of pieces){
+
+        if(piece.taken)
+            continue;
+
+        const d=
+            distance(
+                player.x,
+                player.y,
+                piece.x,
+                piece.y
+            );
+
+        if(d>1.5)
+            continue;
+
+        const a=
+            Math.abs(
+                angleDifference(
+                    Math.atan2(
+                        piece.y-player.y,
+                        piece.x-player.x
+                    ),
+                    player.angle
+                )
+            );
+
+        if(
+            a<.55 &&
+            d<nd
+        ){
+
+            nearest=piece;
+            nd=d;
+        }
+    }
+
+
+    if(!nearest){
+
+        showMessage(
+            "Burada 67 yok."
+        );
+
+        return;
+    }
+
+
+    nearest.taken=true;
+
+    found++;
+
+
+    document.getElementById(
+        "objectiveText"
+    ).textContent=
+        found+
+        " / 10 67";
+
+
+    if(found===1){
+
+        npc.active=true;
+
+        npc.state="wander";
+
+        npc.repathTimer=0;
+
+        showMessage(
+            "İlk 67'yi buldun.<br>"+
+            "Bir şey uyandı."
+        );
+
+    }
+
+    else if(found===3){
+
+        showMessage(
+            "Ayak sesleri..."
+        );
+
+    }
+
+    else if(found===5){
+
+        showMessage(
+            "67 seni arıyor."
+        );
+
+    }
+
+    else if(found===7){
+
+        showMessage(
+            "<b>SIX SEVEN.</b>"
+        );
+
+    }
+
+    else if(found===9){
+
+        showMessage(
+            "Son 67."
+        );
+
+    }
+
+    else if(found===10){
+
+        escapeUnlocked=true;
+
+        document.getElementById(
+            "objectiveText"
+        ).textContent=
+            "Başladığın yere dön.";
+
+        showMessage(
+            "<b>10 / 10</b><br><br>"+
+            "Kapı açıldı.<br>"+
+            "Başladığın yere geri dön."
+        );
+    }
+}
+
+
+/* =========================================================
+   VAHAYA GEÇ
+========================================================= */
+
+function enterOasis(){
+
+    game="oasis";
+
+    npc.active=false;
+
+    player.x=0;
+    player.y=0;
+
+    player.angle=0;
+
+    document.getElementById(
+        "warning"
+    ).style.opacity="0";
+
+    updateHomeObjective();
+
+    showMessage(
+        "🌿 VAHAYA HOŞ GELDİN.<br><br>"+
+        "Burada artık kaçman gerekmiyor.<br>"+
+        "Evini bul."
+    );
+}
+
+
+/* =========================================================
+   YAKALANMA
+========================================================= */
+
+function caught(){
+
+    started=false;
+
+    showMessage(
+        "67 seni yakaladı."
+    );
+
+    setTimeout(
+        ()=>location.reload(),
+        1200
+    );
+}
+
+
+/* =========================================================
+   BAŞLAT
+========================================================= */
+
+document.getElementById("start").onclick=()=>{
+
+    started=true;
+
+    document.getElementById(
+        "menu"
+    ).style.display="none";
+
+
+    game="apartment";
+
+    found=0;
+
+    escapeUnlocked=false;
+
+
+    player.x=spawn.x;
+    player.y=spawn.y;
+    player.angle=0;
+
+
+    npc.x=12.5;
+    npc.y=13.5;
+    npc.angle=0;
+
+    npc.active=false;
+    npc.state="sleep";
+    npc.path=[];
+    npc.pathIndex=0;
+
+
+    resetPieces();
+
+
+    home.task=0;
+
+    home.food=false;
+    home.cookedFood=false;
+    home.plate=false;
+
+    home.eating=false;
+
+    home.tv.on=false;
+
+    home.cabinet.open=0;
+    home.cabinet.target=0;
+    home.cabinet.foodTaken=false;
+
+    home.microwave.door=0;
+    home.microwave.targetDoor=0;
+    home.microwave.foodInside=false;
+    home.microwave.cooking=false;
+    home.microwave.cooked=false;
+
+
+    document.getElementById(
+        "objectiveText"
+    ).textContent=
+        "0 / 10 67";
+
+
+    showMessage(
+        "10 tane 67 bul.<br>"+
+        "Sonra başladığın yere geri dön."
+    );
+};
+
+
+/* =========================================================
+   MESAJ
+========================================================= */
+
+function showMessage(text){
+
+    const box=
+        document.getElementById(
+            "message"
+        );
+
+    box.innerHTML=text;
+
+    box.style.opacity="1";
+
+    clearTimeout(
+        showMessage.timer
+    );
+
+    showMessage.timer=
+        setTimeout(
+            ()=>{
+                box.style.opacity="0";
+            },
+            3500
+        );
+}
+
+
+/* =========================================================
+   ANA DÖNGÜ
+========================================================= */
+
+function loop(time){
+
+    const dt=
+        Math.min(
+            .05,
+            (time-lastTime)/1000
+        );
+
+    lastTime=time;
+    currentTime=time;
+
+
+    if(started){
+
+        updatePlayer(dt);
+
+        if(game==="apartment"){
+
+            updateNPC(dt);
+
+            drawApartment();
+
+            drawEscapeDoor();
+
+            drawNPC(time);
+
+            drawPieces(time);
+
+        }
+
+        else if(game==="oasis"){
+
+            drawOasis();
+
+            /*
+               Eve yaklaşınca bilgi
+            */
+
+            const d=
+                distance(
+                    player.x,
+                    player.y,
+                    oasis.houseEntrance.x,
+                    oasis.houseEntrance.y
+                );
+
+            if(d<6){
+
+                document.getElementById(
+                    "objectiveText"
+                ).textContent=
+                    "🏠 Evin kapısına geldin. E'ye bas.";
+            }
+
+        }
+
+        else if(
+            game==="house"
+        ){
+
+            updateCabinet(dt);
+            updateMicrowave(dt);
+
+            drawHouseInterior();
+
+        }
+
+        else if(
+            game==="upstairs"
+        ){
+
+            drawHouseInterior();
+
+            /*
+               Üst kat için yatağı
+               ayrıca belirginleştir.
+            */
+
+            const p=
+                worldToScreen(
+                    home.bed.x,
+                    home.bed.y
+                );
+
+            if(p){
+
+                ctx.save();
+
+                ctx.fillStyle=
+                    "rgba(255,220,120,.15)";
+
+                ctx.beginPath();
+
+                ctx.arc(
+                    p.x,
+                    p.y,
+                    60,
+                    0,
+                    Math.PI*2
+                );
+
+                ctx.fill();
+
+                ctx.restore();
+            }
+        }
+
+
+        /*
+           Crosshair
+        */
+
+        ctx.beginPath();
+
+        ctx.arc(
+            W/2,
+            H/2,
+            3,
+            0,
+            Math.PI*2
+        );
+
+        ctx.fillStyle="white";
+
+        ctx.fill();
+    }
+
+
+    requestAnimationFrame(loop);
+}
+
+
+requestAnimationFrame(loop);
+
+</script>
+
+</body>
+</html>
