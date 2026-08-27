@@ -1,0 +1,1438 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>67: OASIS</title>
+
+<style>
+*{
+    box-sizing:border-box;
+}
+
+html,body{
+    margin:0;
+    width:100%;
+    height:100%;
+    overflow:hidden;
+    background:#000;
+    font-family:Arial,sans-serif;
+}
+
+canvas{
+    display:block;
+    width:100%;
+    height:100%;
+}
+
+#menu,
+#ending{
+    position:fixed;
+    inset:0;
+    z-index:100;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    text-align:center;
+    color:white;
+    background:
+        radial-gradient(circle at center,#303030 0%,#090909 55%,#000 100%);
+}
+
+#ending{
+    display:none;
+}
+
+.box{
+    width:min(760px,90%);
+}
+
+h1{
+    font-size:clamp(80px,15vw,150px);
+    margin:0;
+    letter-spacing:15px;
+}
+
+h2{
+    letter-spacing:5px;
+}
+
+p{
+    color:#ccc;
+    line-height:1.6;
+}
+
+button{
+    padding:16px 35px;
+    margin-top:20px;
+    border:0;
+    border-radius:10px;
+    font-size:20px;
+    font-weight:bold;
+    cursor:pointer;
+}
+
+button:hover{
+    transform:scale(1.03);
+}
+
+#hud{
+    position:fixed;
+    inset:0;
+    z-index:20;
+    pointer-events:none;
+    color:white;
+    text-shadow:0 2px 6px #000;
+}
+
+#title{
+    position:absolute;
+    top:15px;
+    left:20px;
+    font-size:22px;
+    font-weight:bold;
+}
+
+#objective{
+    position:absolute;
+    top:48px;
+    left:20px;
+    max-width:430px;
+}
+
+#help{
+    position:absolute;
+    top:20px;
+    right:20px;
+    color:#ddd;
+    text-align:right;
+    line-height:1.6;
+}
+
+#warning{
+    position:absolute;
+    top:90px;
+    left:50%;
+    transform:translateX(-50%);
+    color:#ff4444;
+    font-size:20px;
+    font-weight:bold;
+    opacity:0;
+    transition:.2s;
+}
+
+#message{
+    position:absolute;
+    bottom:35px;
+    left:50%;
+    transform:translateX(-50%);
+    width:min(720px,90%);
+    padding:15px 20px;
+    background:rgba(0,0,0,.78);
+    border-radius:12px;
+    text-align:center;
+    opacity:0;
+    transition:.25s;
+}
+
+#crosshair{
+    position:absolute;
+    left:50%;
+    top:50%;
+    width:8px;
+    height:8px;
+    border:2px solid white;
+    border-radius:50%;
+    transform:translate(-50%,-50%);
+}
+
+#fade{
+    position:fixed;
+    inset:0;
+    z-index:90;
+    pointer-events:none;
+    background:#000;
+    opacity:0;
+    transition:opacity .7s;
+}
+</style>
+</head>
+
+<body>
+
+<canvas id="canvas"></canvas>
+
+<div id="fade"></div>
+
+<div id="menu">
+    <div class="box">
+        <h1>67</h1>
+        <h2>OASIS</h2>
+
+        <p>Apartmandan çık.</p>
+
+        <p>
+            10 tane 67'yi bul.
+            <br>
+            Sonra başladığın yere geri dön.
+        </p>
+
+        <p>
+            Kapının ardında uzun zamandır
+            görmediğin bir yer seni bekliyor.
+        </p>
+
+        <button id="start">BAŞLA</button>
+
+        <p style="font-size:14px;color:#777">
+            W A S D = hareket<br>
+            ← → = dön<br>
+            E = etkileşim
+        </p>
+    </div>
+</div>
+
+<div id="hud">
+
+    <div id="title">67: OASIS</div>
+
+    <div id="objective">
+        Amaç:
+        <span id="objectiveText">10 tane 67 bul</span>
+    </div>
+
+    <div id="help">
+        W A S D<br>
+        ← →<br>
+        E
+    </div>
+
+    <div id="warning">
+        ⚠ BİRİ SENİ TAKİP EDİYOR
+    </div>
+
+    <div id="crosshair"></div>
+
+    <div id="message"></div>
+
+</div>
+
+<div id="ending">
+    <div class="box">
+
+        <h1>🌙</h1>
+
+        <h2>UYUDUN</h2>
+
+        <p>
+            Günün sonunda eve döndün.
+        </p>
+
+        <p>
+            Televizyon sessizleşti.
+            <br>
+            Ev karanlığa büründü.
+        </p>
+
+        <h2>67</h2>
+
+        <p>
+            Hikâyenin ilk bölümü burada bitiyor.
+        </p>
+
+        <button onclick="location.reload()">
+            TEKRAR OYNA
+        </button>
+
+    </div>
+</div>
+
+<script>
+
+/* =========================================================
+   CANVAS
+========================================================= */
+
+const canvas=document.getElementById("canvas");
+const ctx=canvas.getContext("2d");
+
+let W=innerWidth;
+let H=innerHeight;
+
+function resize(){
+    W=innerWidth;
+    H=innerHeight;
+
+    canvas.width=W;
+    canvas.height=H;
+}
+
+resize();
+addEventListener("resize",resize);
+
+
+/* =========================================================
+   GENEL OYUN DURUMU
+========================================================= */
+
+let started=false;
+
+let game="apartment";
+
+let found=0;
+
+let escapeUnlocked=false;
+
+let lastTime=performance.now();
+
+let currentTime=0;
+
+
+/* =========================================================
+   KLAVYE
+========================================================= */
+
+const keys={};
+
+addEventListener("keydown",e=>{
+
+    keys[e.code]=true;
+
+    if([
+        "ArrowLeft",
+        "ArrowRight",
+        "ArrowUp",
+        "ArrowDown",
+        "Space"
+    ].includes(e.code)){
+        e.preventDefault();
+    }
+
+    if(
+        e.code==="KeyE" &&
+        !e.repeat
+    ){
+        interact();
+    }
+
+});
+
+addEventListener("keyup",e=>{
+    keys[e.code]=false;
+});
+
+
+/* =========================================================
+   YARDIMCI
+========================================================= */
+
+function clamp(v,a,b){
+    return Math.max(a,Math.min(b,v));
+}
+
+function distance(ax,ay,bx,by){
+    return Math.hypot(ax-bx,ay-by);
+}
+
+function angleDifference(a,b){
+
+    let d=a-b;
+
+    while(d>Math.PI)d-=Math.PI*2;
+    while(d<-Math.PI)d+=Math.PI*2;
+
+    return d;
+}
+
+
+/* =========================================================
+   OYUNCU
+========================================================= */
+
+const player={
+    x:2.5,
+    y:1.5,
+    angle:0
+};
+
+const spawn={
+    x:2.5,
+    y:1.5
+};
+
+
+/* =========================================================
+   APARTMAN HARİTASI
+========================================================= */
+
+const MAP=[
+
+"################",
+"#..............#",
+"#.####..####...#",
+"#.#............#",
+"#.#.######.###.#",
+"#.#........#...#",
+"#.#######..#.#.#",
+"...........#..#",
+"###.##########.#",
+"#..............#",
+"#.######.#####.#",
+"#.#............#",
+"#.#.##########.#",
+"#..............#",
+"################"
+
+];
+
+const MW=MAP[0].length;
+const MH=MAP.length;
+
+
+function isWall(x,y){
+
+    const mx=Math.floor(x);
+    const my=Math.floor(y);
+
+    if(
+        mx<0 ||
+        my<0 ||
+        mx>=MW ||
+        my>=MH
+    ){
+        return true;
+    }
+
+    return MAP[my][mx]==="#";
+}
+
+
+function canMove(x,y,r=.18){
+
+    return(
+        !isWall(x-r,y-r) &&
+        !isWall(x+r,y-r) &&
+        !isWall(x-r,y+r) &&
+        !isWall(x+r,y+r)
+    );
+}
+
+
+/* =========================================================
+   67 PARÇALARI
+========================================================= */
+
+const pieceLocations=[
+
+    [3.5,1.5],
+    [7.5,1.5],
+    [12.5,1.5],
+    [3.5,3.5],
+    [9.5,3.5],
+    [12.5,5.5],
+    [2.5,7.5],
+    [9.5,7.5],
+    [5.5,9.5],
+    [11.5,11.5]
+
+];
+
+let pieces=[];
+
+function resetPieces(){
+
+    pieces=pieceLocations.map((p,i)=>({
+
+        x:p[0],
+        y:p[1],
+
+        taken:false,
+
+        phase:i*.7
+
+    }));
+
+}
+
+resetPieces();
+
+
+/* =========================================================
+   NPC
+========================================================= */
+
+const npc={
+
+    x:12.5,
+    y:13.5,
+
+    angle:0,
+
+    speed:1.45,
+
+    active:false,
+
+    state:"sleep",
+
+    path:[],
+
+    pathIndex:0,
+
+    repathTimer:0,
+
+    lastPlayerX:12.5,
+    lastPlayerY:13.5,
+
+    lostTimer:0
+
+};
+
+
+/* =========================================================
+   NPC GRID YOL BULMA
+   Eski kodun en büyük problemi burada çözülüyor.
+========================================================= */
+
+function gridKey(x,y){
+    return x+","+y;
+}
+
+
+function cellCenter(cx,cy){
+    return{
+        x:cx+.5,
+        y:cy+.5
+    };
+}
+
+
+function findPath(sx,sy,tx,ty){
+
+    const startX=Math.floor(sx);
+    const startY=Math.floor(sy);
+
+    const targetX=Math.floor(tx);
+    const targetY=Math.floor(ty);
+
+    if(
+        isWall(targetX+.5,targetY+.5)
+    ){
+        return [];
+    }
+
+    const queue=[];
+
+    const visited=new Set();
+
+    const previous=new Map();
+
+    const start=gridKey(startX,startY);
+
+    queue.push([
+        startX,
+        startY
+    ]);
+
+    visited.add(start);
+
+    const dirs=[
+        [1,0],
+        [-1,0],
+        [0,1],
+        [0,-1]
+    ];
+
+    while(queue.length){
+
+        const [x,y]=queue.shift();
+
+        if(
+            x===targetX &&
+            y===targetY
+        ){
+
+            const result=[];
+
+            let current=gridKey(x,y);
+
+            while(current!==start){
+
+                const [cx,cy]=current
+                    .split(",")
+                    .map(Number);
+
+                result.unshift(
+                    cellCenter(cx,cy)
+                );
+
+                current=previous.get(current);
+
+                if(!current)
+                    break;
+            }
+
+            return result;
+        }
+
+        for(const [dx,dy] of dirs){
+
+            const nx=x+dx;
+            const ny=y+dy;
+
+            if(
+                nx<0 ||
+                ny<0 ||
+                nx>=MW ||
+                ny>=MH
+            )
+                continue;
+
+            if(
+                MAP[ny][nx]==="#"
+            )
+                continue;
+
+            const key=gridKey(nx,ny);
+
+            if(visited.has(key))
+                continue;
+
+            visited.add(key);
+
+            previous.set(
+                key,
+                gridKey(x,y)
+            );
+
+            queue.push([
+                nx,
+                ny
+            ]);
+        }
+    }
+
+    return [];
+}
+
+
+/* =========================================================
+   GÖRÜŞ
+========================================================= */
+
+function hasLineOfSight(ax,ay,bx,by){
+
+    const dx=bx-ax;
+    const dy=by-ay;
+
+    const d=Math.hypot(dx,dy);
+
+    const steps=Math.ceil(d/.08);
+
+    for(let i=1;i<steps;i++){
+
+        const t=i/steps;
+
+        const x=ax+dx*t;
+        const y=ay+dy*t;
+
+        if(isWall(x,y))
+            return false;
+    }
+
+    return true;
+}
+
+
+function npcCanSeePlayer(){
+
+    const dx=player.x-npc.x;
+    const dy=player.y-npc.y;
+
+    const d=Math.hypot(dx,dy);
+
+    if(d>9)
+        return false;
+
+    const a=Math.atan2(dy,dx);
+
+    const diff=Math.abs(
+        angleDifference(a,npc.angle)
+    );
+
+    if(
+        d>.8 &&
+        diff>1.05
+    )
+        return false;
+
+    return hasLineOfSight(
+        npc.x,
+        npc.y,
+        player.x,
+        player.y
+    );
+}
+
+
+/* =========================================================
+   NPC YOLU GÜNCELLE
+========================================================= */
+
+function recalculateNPCPath(targetX,targetY){
+
+    npc.path=findPath(
+        npc.x,
+        npc.y,
+        targetX,
+        targetY
+    );
+
+    npc.pathIndex=0;
+}
+
+
+/* =========================================================
+   NPC HAREKET
+========================================================= */
+
+function moveNPC(dt){
+
+    if(
+        !npc.path.length ||
+        npc.pathIndex>=npc.path.length
+    ){
+        return true;
+    }
+
+    const target=npc.path[npc.pathIndex];
+
+    const dx=target.x-npc.x;
+    const dy=target.y-npc.y;
+
+    const d=Math.hypot(dx,dy);
+
+    if(d<.12){
+
+        npc.pathIndex++;
+
+        return false;
+    }
+
+    npc.angle=Math.atan2(dy,dx);
+
+    const step=Math.min(
+        d,
+        npc.speed*dt
+    );
+
+    const nx=
+        npc.x+
+        Math.cos(npc.angle)*step;
+
+    const ny=
+        npc.y+
+        Math.sin(npc.angle)*step;
+
+    if(canMove(nx,npc.y,.22)){
+        npc.x=nx;
+    }
+
+    if(canMove(npc.x,ny,.22)){
+        npc.y=ny;
+    }
+
+    return false;
+}
+
+
+/* =========================================================
+   NPC AI
+========================================================= */
+
+function updateNPC(dt){
+
+    if(!npc.active)
+        return;
+
+    const sees=npcCanSeePlayer();
+
+    if(sees){
+
+        npc.state="chase";
+
+        npc.lastPlayerX=player.x;
+        npc.lastPlayerY=player.y;
+
+        npc.lostTimer=0;
+
+    }else if(npc.state==="chase"){
+
+        npc.lostTimer+=dt;
+
+        if(npc.lostTimer>1.2){
+
+            npc.state="search";
+
+            npc.repathTimer=0;
+        }
+    }
+
+
+    npc.repathTimer-=dt;
+
+
+    if(
+        npc.state==="chase"
+    ){
+
+        if(
+            npc.repathTimer<=0
+        ){
+
+            recalculateNPCPath(
+                player.x,
+                player.y
+            );
+
+            npc.repathTimer=.35;
+        }
+
+        moveNPC(dt);
+
+    }
+
+    else if(
+        npc.state==="search"
+    ){
+
+        if(
+            npc.repathTimer<=0
+        ){
+
+            recalculateNPCPath(
+                npc.lastPlayerX,
+                npc.lastPlayerY
+            );
+
+            npc.repathTimer=.5;
+        }
+
+        const arrived=moveNPC(dt);
+
+        if(
+            arrived ||
+            distance(
+                npc.x,
+                npc.y,
+                npc.lastPlayerX,
+                npc.lastPlayerY
+            )<.4
+        ){
+
+            npc.state="wander";
+
+            npc.repathTimer=0;
+        }
+
+    }
+
+    else if(
+        npc.state==="wander"
+    ){
+
+        if(
+            !npc.path.length ||
+            npc.pathIndex>=npc.path.length ||
+            npc.repathTimer<=0
+        ){
+
+            let tx=player.x;
+            let ty=player.y;
+
+            for(let i=0;i<20;i++){
+
+                const rx=
+                    1+
+                    Math.floor(
+                        Math.random()*(MW-2)
+                    );
+
+                const ry=
+                    1+
+                    Math.floor(
+                        Math.random()*(MH-2)
+                    );
+
+                if(
+                    MAP[ry][rx]==="."
+                ){
+
+                    tx=rx+.5;
+                    ty=ry+.5;
+                    break;
+                }
+            }
+
+            recalculateNPCPath(tx,ty);
+
+            npc.repathTimer=3+
+                Math.random()*3;
+        }
+
+        moveNPC(dt);
+    }
+
+
+    const d=distance(
+        player.x,
+        player.y,
+        npc.x,
+        npc.y
+    );
+
+    const warning=
+        document.getElementById("warning");
+
+    warning.style.opacity=
+        d<4 ? "1" : "0";
+
+    if(d<.55){
+        caught();
+    }
+}
+
+
+/* =========================================================
+   OYUNCU HAREKET
+========================================================= */
+
+function updatePlayer(dt){
+
+    if(!started)
+        return;
+
+    const speed=
+        game==="apartment" ? 2.8 :
+        game==="oasis" ? 4.0 :
+        game==="house" ? 2.7 :
+        game==="upstairs" ? 2.4 :
+        0;
+
+    const rotate=2.6;
+
+    if(keys["ArrowLeft"])
+        player.angle-=rotate*dt;
+
+    if(keys["ArrowRight"])
+        player.angle+=rotate*dt;
+
+    let forward=0;
+    let strafe=0;
+
+    if(keys["KeyW"])
+        forward++;
+
+    if(keys["KeyS"])
+        forward--;
+
+    if(keys["KeyA"])
+        strafe--;
+
+    if(keys["KeyD"])
+        strafe++;
+
+
+    let mx=
+        Math.cos(player.angle)*
+        forward*
+        speed*
+        dt;
+
+    let my=
+        Math.sin(player.angle)*
+        forward*
+        speed*
+        dt;
+
+
+    mx+=
+        Math.cos(
+            player.angle+Math.PI/2
+        )*
+        strafe*
+        speed*
+        dt;
+
+    my+=
+        Math.sin(
+            player.angle+Math.PI/2
+        )*
+        strafe*
+        speed*
+        dt;
+
+
+    if(
+        game==="apartment"
+    ){
+
+        if(canMove(player.x+mx,player.y,.2))
+            player.x+=mx;
+
+        if(canMove(player.x,player.y+my,.2))
+            player.y+=my;
+
+    }
+
+    else if(
+        game==="oasis"
+    ){
+
+        moveOasisPlayer(mx,my);
+
+    }
+
+    else if(
+        game==="house" ||
+        game==="upstairs"
+    ){
+
+        moveHousePlayer(mx,my);
+    }
+}
+
+
+/* =========================================================
+   RAYCAST
+========================================================= */
+
+function castRay(angle){
+
+    let d=0;
+
+    const cos=Math.cos(angle);
+    const sin=Math.sin(angle);
+
+    while(d<30){
+
+        d+=.025;
+
+        const x=
+            player.x+
+            cos*d;
+
+        const y=
+            player.y+
+            sin*d;
+
+        if(isWall(x,y))
+            return d;
+    }
+
+    return 30;
+}
+
+
+/* =========================================================
+   APARTMAN ÇİZİM
+========================================================= */
+
+function drawApartment(){
+
+    const sky=
+        ctx.createLinearGradient(
+            0,0,0,H/2
+        );
+
+    sky.addColorStop(0,"#020202");
+    sky.addColorStop(1,"#292929");
+
+    ctx.fillStyle=sky;
+    ctx.fillRect(0,0,W,H/2);
+
+
+    const floor=
+        ctx.createLinearGradient(
+            0,H/2,0,H
+        );
+
+    floor.addColorStop(0,"#1b1b1b");
+    floor.addColorStop(1,"#000");
+
+    ctx.fillStyle=floor;
+    ctx.fillRect(0,H/2,W,H/2);
+
+
+    const rays=Math.min(W,1000);
+    const column=W/rays;
+
+    for(let i=0;i<rays;i++){
+
+        const camera=i/rays-.5;
+
+        const angle=
+            player.angle+
+            camera*(Math.PI/3);
+
+        const d=castRay(angle);
+
+        const corrected=
+            d*
+            Math.cos(
+                angle-player.angle
+            );
+
+        const height=
+            H/
+            Math.max(corrected,.01)
+            *.9;
+
+        const top=
+            H/2-height/2;
+
+        let light=
+            180-corrected*12;
+
+        light=clamp(light,20,180);
+
+        ctx.fillStyle=
+            `rgb(${light},${light},${light})`;
+
+        ctx.fillRect(
+            i*column,
+            top,
+            column+1,
+            height
+        );
+    }
+}
+
+
+/* =========================================================
+   GÖRÜNEN NESNE
+========================================================= */
+
+function visibleObject(x,y){
+
+    const dx=x-player.x;
+    const dy=y-player.y;
+
+    const d=Math.hypot(dx,dy);
+
+    let a=
+        Math.atan2(dy,dx)-
+        player.angle;
+
+    while(a>Math.PI)a-=Math.PI*2;
+    while(a<-Math.PI)a+=Math.PI*2;
+
+    if(Math.abs(a)>Math.PI/6)
+        return null;
+
+    const wallDistance=
+        castRay(
+            player.angle+a
+        );
+
+    if(wallDistance<d-.15)
+        return null;
+
+    return{
+        distance:d,
+        angle:a
+    };
+}
+
+
+/* =========================================================
+   67 ÇİZ
+========================================================= */
+
+function drawPieces(time){
+
+    const visible=[];
+
+    for(const piece of pieces){
+
+        if(piece.taken)
+            continue;
+
+        const data=
+            visibleObject(
+                piece.x,
+                piece.y
+            );
+
+        if(data){
+
+            visible.push({
+                piece,
+                distance:data.distance,
+                angle:data.angle
+            });
+
+        }
+    }
+
+    visible.sort(
+        (a,b)=>b.distance-a.distance
+    );
+
+    for(const obj of visible){
+
+        const p=obj.piece;
+
+        const x=
+            W/2+
+            (
+                obj.angle/
+                (Math.PI/3)
+            )*W;
+
+        const size=Math.min(
+            150,
+            H/
+            Math.max(
+                obj.distance,
+                .1
+            )*.5
+        );
+
+        const y=
+            H/2+
+            Math.sin(
+                time*.004+
+                p.phase
+            )*8;
+
+        ctx.save();
+
+        ctx.textAlign="center";
+        ctx.textBaseline="middle";
+
+        ctx.font=
+            "bold "+
+            Math.max(18,size)+
+            "px Arial";
+
+        ctx.shadowColor="#ffff00";
+        ctx.shadowBlur=25;
+
+        ctx.fillStyle="#ffff33";
+
+        ctx.fillText(
+            "67",
+            x,
+            y
+        );
+
+        ctx.restore();
+    }
+}
+
+
+/* =========================================================
+   NPC ÇİZ
+========================================================= */
+
+function drawNPC(time){
+
+    if(!npc.active)
+        return;
+
+    const data=
+        visibleObject(
+            npc.x,
+            npc.y
+        );
+
+    if(!data)
+        return;
+
+    const x=
+        W/2+
+        (
+            data.angle/
+            (Math.PI/3)
+        )*W;
+
+    const size=Math.min(
+        250,
+        H/
+        Math.max(
+            data.distance,
+            .1
+        )*.9
+    );
+
+    const y=
+        H/2+
+        Math.sin(time*.004)*4;
+
+    ctx.save();
+
+    ctx.fillStyle="#111";
+
+    ctx.shadowColor="#ff0000";
+    ctx.shadowBlur=20;
+
+    ctx.beginPath();
+
+    ctx.ellipse(
+        x,
+        y+size*.2,
+        size*.2,
+        size*.42,
+        0,
+        0,
+        Math.PI*2
+    );
+
+    ctx.fill();
+
+
+    ctx.fillStyle="#ccc";
+
+    ctx.beginPath();
+
+    ctx.arc(
+        x,
+        y-size*.13,
+        size*.16,
+        0,
+        Math.PI*2
+    );
+
+    ctx.fill();
+
+
+    ctx.fillStyle="#ff2222";
+
+    ctx.beginPath();
+
+    ctx.arc(
+        x-size*.055,
+        y-size*.15,
+        Math.max(2,size*.025),
+        0,
+        Math.PI*2
+    );
+
+    ctx.fill();
+
+    ctx.beginPath();
+
+    ctx.arc(
+        x+size*.055,
+        y-size*.15,
+        Math.max(2,size*.025),
+        0,
+        Math.PI*2
+    );
+
+    ctx.fill();
+
+    ctx.restore();
+}
+
+
+/* =========================================================
+   ÇIKIŞ KAPISI
+========================================================= */
+
+function drawEscapeDoor(){
+
+    const data=
+        visibleObject(
+            spawn.x,
+            spawn.y
+        );
+
+    if(!data)
+        return;
+
+    const x=
+        W/2+
+        (
+            data.angle/
+            (Math.PI/3)
+        )*W;
+
+    const size=Math.min(
+        230,
+        H/
+        Math.max(
+            data.distance,
+            .1
+        )
+    );
+
+    ctx.save();
+
+    ctx.strokeStyle=
+        escapeUnlocked ?
+        "#00ff88" :
+        "#555";
+
+    ctx.lineWidth=8;
+
+    ctx.shadowColor=
+        escapeUnlocked ?
+        "#00ff88" :
+        "#555";
+
+    ctx.shadowBlur=25;
+
+    ctx.strokeRect(
+        x-size*.35,
+        H/2-size*.55,
+        size*.7,
+        size*1.1
+    );
+
+    ctx.fillStyle=
+        escapeUnlocked ?
+        "#00ff88" :
+        "#777";
+
+    ctx.font=
+        "bold "+
+        Math.max(
+            22,
+            size*.2
+        )+
+        "px Arial";
+
+    ctx.textAlign="center";
+
+    ctx.fillText(
+        escapeUnlocked ?
+        "ÇIKIŞ" :
+        "67",
+        x,
+        H/2
+    );
+
+    ctx.restore();
+}
+
+
+/* =========================================================
+   VAHA
+========================================================= */
+
+const oasis={
+
+    width:140,
+    height:100,
+
+    objects:[],
+
+    houseEntrance:{
+        x:48,
+        y:-30
+    }
+
+};
+
+... (file truncated for brevity in tool response)
